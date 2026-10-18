@@ -1,0 +1,17 @@
+{
+  "name": "nyc-flow-analyst",
+  "owner": {
+    "name": "Oranich Jamkachornkiat",
+    "url": "https://techgirl.nyc"
+  },
+  "description": "An in-chat analyst for NYC subway trip data.",
+  "plugins": [
+    {
+      "name": "nyc-flow-analyst",
+      "source": "./",
+      "description": "Ask where New Yorkers travel by subway. Answers come from live MTA origin-destination data, with an interactive chart, a flow map, and every query shown.",
+      "category": "data",
+      "keywords": ["nyc", "subway", "mta", "open-data", "data-analysis"]
+    }
+  ]
+}

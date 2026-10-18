@@ -1,0 +1,663 @@
+<!-- Answer card for the NYC Flow analyst. `nyc.py card` fills in the answer
+     data, drops comments, and passes the result to the chat's show_widget. -->
+<style>
+/* Answer card styles. Colors come from the chat's theme variables, so the
+   card follows light and dark mode on its own. */
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* Pipeline chips: Question › Collect › Analyze › Present */
+.nf-pipeline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 1rem; }
+.nf-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 10px; border-radius: var(--radius); background: var(--surface-1); color: var(--text-secondary); }
+.nf-chevron { color: var(--text-muted); font-size: 14px; }
+
+/* Headline and KPI tiles */
+.nf-headline { font-size: 18px; font-weight: 500; line-height: 1.4; color: var(--text-primary); }
+.nf-subhead { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
+.nf-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 1rem 0; }
+.nf-kpi { background: var(--surface-1); border-radius: var(--radius); padding: 12px 14px; }
+.nf-kpi-label { font-size: 13px; color: var(--text-secondary); }
+.nf-kpi-value { font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* Map and chart */
+.nf-section { margin: 0 0 1rem; }
+.nf-legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; }
+.nf-legend-item { display: flex; align-items: center; gap: 6px; }
+.nf-chart { position: relative; width: 100%; height: 300px; }
+.nf-map-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
+.nf-map-bar button[aria-pressed="true"] { background: var(--surface-1); border-color: var(--border-stronger); }
+.nf-map-note { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+.nf-map-frame { position: relative; border-radius: 12px; overflow: hidden; border: 0.5px solid var(--border); }
+/* The chat sizes SVGs on its own; pin the map to its 680 × 400 shape so the frame never stretches. */
+.nf-map-frame svg { display: block; width: 100% !important; height: auto !important; aspect-ratio: 680 / 400; }
+.nf-map-info { position: absolute; top: 10px; left: 10px; max-width: 60%; font-size: 12px; line-height: 1.5; padding: 6px 10px; border-radius: var(--radius); background: var(--surface-2); color: var(--text-secondary); border: 0.5px solid var(--border); pointer-events: none; }
+.nf-map-info strong { color: var(--text-primary); font-weight: 500; }
+.nf-map-label { font-size: 11.5px; paint-order: stroke; stroke-width: 3.5px; stroke-linejoin: round; }
+.nf-map-place { font-size: 12.5px; font-weight: 500; }
+.nf-map-borough { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* Query steps: the whole section and each step open and close */
+.nf-steps summary, .nf-step summary { list-style: none; cursor: pointer; }
+.nf-steps summary::-webkit-details-marker, .nf-step summary::-webkit-details-marker { display: none; }
+.nf-steps-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--text-secondary); padding: 6px 0; }
+.nf-steps-title:hover { color: var(--text-primary); }
+.nf-steps[open] > .nf-steps-title { margin-bottom: 8px; }
+.nf-caret { transition: transform 0.15s; }
+details[open] > summary .nf-caret { transform: rotate(90deg); }
+.nf-step { border: 0.5px solid var(--border); border-radius: 12px; padding: 10px 14px; margin: 0 0 8px; background: var(--surface-2); }
+.nf-step-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.nf-step-num { font-size: 13px; font-weight: 500; }
+.nf-step-label { font-size: 13px; color: var(--text-secondary); }
+.nf-tag { font-size: 11px; padding: 2px 8px; border-radius: var(--radius); }
+.nf-tag-live { background: var(--bg-accent); color: var(--text-accent); }
+.nf-tag-local { background: var(--surface-1); color: var(--text-secondary); }
+.nf-meta { font-size: 12px; color: var(--text-muted); }
+.nf-where { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.nf-mono { font-family: var(--font-mono); }
+.nf-link { color: var(--text-accent); text-decoration: none; }
+.nf-link:hover { text-decoration: underline; }
+
+/* Formatted SQL */
+.nf-code { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.75; background: var(--surface-1); border-radius: var(--radius); padding: 12px 14px; margin: 10px 0 0; white-space: pre; overflow-x: auto; color: var(--text-primary); }
+.nf-code .k { color: var(--text-accent); font-weight: 500; }
+.nf-code .f { color: var(--text-pro, var(--text-accent)); }
+.nf-code .s { color: var(--text-success); }
+.nf-code .n { color: var(--text-warning); }
+.nf-code .p { color: var(--text-muted); }
+
+/* Row preview */
+.nf-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+.nf-table td, .nf-table th { text-align: left; padding: 4px 6px; border-bottom: 0.5px solid var(--border); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nf-table th { color: var(--text-secondary); font-weight: 500; }
+
+/* Footer and follow-ups */
+.nf-foot { margin: 10px 0 0; line-height: 1.6; }
+.nf-follow { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
+</style>
+<h2 class="sr-only" id="nf-sr">NYC subway trip answer with a map, a chart, and the queries behind it</h2>
+<div class="nf-pipeline" id="nf-pipeline"></div>
+<div id="nf-head"></div>
+<div class="nf-kpis" id="nf-kpis"></div>
+<div class="nf-section nf-map" id="nf-map"></div>
+<div class="nf-section" id="nf-chart-section">
+  <div class="nf-legend" id="nf-legend"></div>
+  <div class="nf-chart" id="nf-chart-wrap"><canvas id="nf-chart" role="img" aria-label="Chart"></canvas></div>
+</div>
+<details class="nf-steps" id="nf-steps-box">
+  <summary class="nf-steps-title" id="nf-steps-summary">How this was answered</summary>
+  <div id="nf-steps"></div>
+</details>
+<div class="nf-meta nf-foot" id="nf-foot"></div>
+<div class="nf-follow" id="nf-follow"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+// Answer card for the NYC Flow analyst.
+//
+// card.py inlines this file into answer-card.html and replaces the ANSWER
+// placeholder with the answer's data: headline, KPIs, an optional flow map,
+// an optional chart, and every logged query step. Comment-only lines are
+// stripped when the card is built.
+
+const ANSWER = /*ANSWER*/null;
+
+// ── Theme ────────────────────────────────────────────────────────────────────
+
+const themeMode = document.documentElement.dataset.mode;
+const isDark = themeMode ? themeMode === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+
+// Canvas and SVG attributes can't read CSS variables, so the chart colors are
+// spelled out for each mode. Series colors follow a fixed order (Saturday is
+// always the first color, never re-ranked).
+const COLORS = {
+  series: isDark
+    ? ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767']
+    : ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'],
+  muted: '#898781',
+  context: isDark ? '#5f5e5a' : '#c3c2b7',
+  grid: isDark ? '#2c2c2a' : '#e1e0d9',
+  ink: isDark ? '#f0efec' : '#0b0b0b',
+  inkSoft: isDark ? '#c3c2b7' : '#52514e',
+  surface: isDark ? '#1a1a19' : '#fcfcfb',
+  station: isDark ? '#5f5e5a' : '#b4b2a9',
+  water: isDark ? '#1f2a33' : '#e8eef3',
+  land: isDark ? '#262624' : '#fbfaf7',
+  landEdge: isDark ? '#383835' : '#d3d1c7',
+  boroughLabel: isDark ? '#5f5e5a' : '#b4b2a9',
+};
+const LINE_DASHES = [[], [6, 4], [2, 3], [10, 3, 2, 3]];
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const byId = (id) => document.getElementById(id);
+
+function escapeHtml(value) {
+  const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+  return String(value ?? '').replace(/[&<>"]/g, (c) => entities[c]);
+}
+
+function formatNumber(value, digits = 0) {
+  if (typeof value !== 'number') return escapeHtml(value);
+  return value.toLocaleString(undefined, { maximumFractionDigits: digits });
+}
+
+function icon(name) {
+  return `<i class="ti ti-${name}" aria-hidden="true"></i>`;
+}
+
+// ── Header: pipeline, headline, KPIs ─────────────────────────────────────────
+
+function renderPipeline(steps) {
+  const queries = `Collect · ${steps.length} ${steps.length === 1 ? 'query' : 'queries'}`;
+  const stages = [['message-question', 'Question'], ['database', queries], ['chart-dots', 'Analyze'], ['presentation', 'Present']];
+  const chevron = `<i class="ti ti-chevron-right nf-chevron" aria-hidden="true"></i>`;
+  byId('nf-pipeline').innerHTML = stages
+    .map(([name, label]) => `<span class="nf-chip">${icon(name)}${escapeHtml(label)}</span>`)
+    .join(chevron);
+}
+
+function renderHeader(answer) {
+  byId('nf-sr').textContent = answer.headline;
+  const subhead = answer.subhead ? `<div class="nf-subhead">${escapeHtml(answer.subhead)}</div>` : '';
+  byId('nf-head').innerHTML = `<div class="nf-headline">${escapeHtml(answer.headline)}</div>${subhead}`;
+}
+
+function renderKpis(kpis) {
+  const box = byId('nf-kpis');
+  if (!kpis.length) return box.remove();
+  box.innerHTML = kpis
+    .map((k) => `<div class="nf-kpi"><div class="nf-kpi-label">${escapeHtml(k.label)}</div><div class="nf-kpi-value">${escapeHtml(k.value)}</div></div>`)
+    .join('');
+}
+
+// ── Flow map ─────────────────────────────────────────────────────────────────
+//
+// Draws real borough outlines (land and water) as the base, zoomed to the
+// chosen neighborhood and its strongest flows. Arcs run from the
+// neighborhood's center to each destination's center (reversed for arrivals),
+// fading in toward the end so the direction reads at a glance. Width follows
+// riders. Hovering an arc highlights it and shows its numbers. Buttons switch
+// between series, such as days.
+
+const MAP_WIDTH = 680;
+const MAP_HEIGHT = 400;
+const MAP_PAD = { x: 70, y: 22 };  // room for labels at the edges
+const MAP_MAX_ARCS = 12;
+const MAP_LABELS = 6;
+
+// Borough boundaries (NYC Open Data, via Code for America's click_that_hood,
+// MIT), pinned to a commit and served from jsDelivr, which the chat allows.
+const BOROUGHS_URL = 'https://cdn.jsdelivr.net/gh/codeforamerica/click_that_hood@48ba05ad4c6969e3b3c25735492169227ae411f1/public/data/new-york-city-boroughs.geojson';
+
+function mapProjection(map) {
+  const asFeature = ({ lat, lon }) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] } });
+  const focus = [map.place, ...topFlows(map, 0)].map(asFeature);
+  return d3.geoMercator().fitExtent(
+    [[MAP_PAD.x, MAP_PAD.y], [MAP_WIDTH - MAP_PAD.x, MAP_HEIGHT - MAP_PAD.y]],
+    { type: 'FeatureCollection', features: focus },
+  );
+}
+
+function topFlows(map, seriesIndex) {
+  return [...map.flows]
+    .sort((a, b) => b.values[seriesIndex] - a.values[seriesIndex])
+    .slice(0, MAP_MAX_ARCS);
+}
+
+// d3 expects clockwise outer rings; flip any polygon that would otherwise
+// fill the whole globe.
+function rewind(feature) {
+  const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
+  for (const rings of polygons) {
+    if (d3.geoArea({ type: 'Polygon', coordinates: rings }) > 2 * Math.PI) rings.forEach((ring) => ring.reverse());
+  }
+  return feature;
+}
+
+async function drawLand(layer, path) {
+  try {
+    const boroughs = await d3.json(BOROUGHS_URL);
+    const features = boroughs.features.map(rewind);
+    layer.selectAll('path').data(features).join('path')
+      .attr('d', path)
+      .attr('fill', COLORS.land)
+      .attr('stroke', COLORS.landEdge)
+      .attr('stroke-width', 0.8);
+    layer.selectAll('text').data(features).join('text')
+      .attr('class', 'nf-map-borough')
+      .attr('x', (f) => path.centroid(f)[0])
+      .attr('y', (f) => path.centroid(f)[1])
+      .attr('fill', COLORS.boroughLabel)
+      .attr('text-anchor', 'middle')
+      .text((f) => f.properties.name);
+  } catch {
+    layer.append('text').attr('x', 12).attr('y', MAP_HEIGHT - 12).attr('class', 'nf-map-borough')
+      .attr('fill', COLORS.muted).text('Borough outlines unavailable');
+  }
+}
+
+// Keeps labels from overlapping: the biggest flows claim space first, and a
+// label that would collide with one already placed is left off (hovering its
+// arc still shows the numbers).
+function placeLabels(items, reserved) {
+  const boxes = [...reserved];
+  const overlaps = (a) => boxes.some((b) => a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1);
+  const placed = [];
+  for (const item of items) {
+    const width = item.text.length * 6.3;
+    const left = item.x - item.offset - width;
+    const right = item.x + item.offset;
+    const preferLeft = item.x < item.originX;
+    for (const x1 of preferLeft ? [left, right] : [right, left]) {
+      const box = { x1, x2: x1 + width, y1: item.y - 9, y2: item.y + 5 };
+      if (x1 >= 2 && box.x2 <= MAP_WIDTH - 2 && !overlaps(box)) {
+        boxes.push(box);
+        placed.push({ ...item, labelX: x1 });
+        break;
+      }
+    }
+  }
+  return placed;
+}
+
+function renderMap(map) {
+  const box = byId('nf-map');
+  if (!map) return box.remove();
+
+  const projection = mapProjection(map);
+  const path = d3.geoPath(projection);
+  const project = (lat, lon) => projection([lon, lat]);
+  const [placeX, placeY] = project(map.place.lat, map.place.lon);
+  const maxRiders = d3.max(map.flows, (f) => d3.max(f.values));
+  const strokeWidth = d3.scaleSqrt([0, maxRiders], [1, 9]);
+  const dotRadius = d3.scaleSqrt([0, maxRiders], [2.5, 6]);
+  const ends = (f) => {
+    const [x, y] = project(f.lat, f.lon);
+    return map.direction === 'arrivals' ? [x, y, placeX, placeY] : [placeX, placeY, x, y];
+  };
+
+  box.innerHTML = `
+    <div class="nf-map-bar" id="nf-map-bar"></div>
+    <div class="nf-map-frame">
+      <div class="nf-map-info" id="nf-map-info"></div>
+    </div>`;
+  const svg = d3.select(box.querySelector('.nf-map-frame')).append('svg')
+    .attr('viewBox', `0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`)
+    .attr('width', MAP_WIDTH)
+    .attr('height', MAP_HEIGHT)
+    .attr('role', 'img')
+    .attr('aria-label', `Map of subway ${map.direction} for ${map.place.name}`);
+  const defs = svg.append('defs');
+  defs.append('clipPath').attr('id', 'nf-map-clip')
+    .append('rect').attr('width', MAP_WIDTH).attr('height', MAP_HEIGHT).attr('rx', 12);
+
+  const canvas = svg.append('g').attr('clip-path', 'url(#nf-map-clip)');
+  canvas.append('rect').attr('width', MAP_WIDTH).attr('height', MAP_HEIGHT).attr('fill', COLORS.water);
+  drawLand(canvas.append('g'), path);
+  canvas.append('g').selectAll('circle').data(map.stations).join('circle')
+    .attr('cx', (s) => project(s[0], s[1])[0])
+    .attr('cy', (s) => project(s[0], s[1])[1])
+    .attr('r', 1.1)
+    .attr('fill', COLORS.station);
+
+  const arcLayer = canvas.append('g').attr('fill', 'none').attr('stroke-linecap', 'round');
+  const dotLayer = canvas.append('g');
+  const labelLayer = canvas.append('g').attr('pointer-events', 'none');
+  const hitLayer = canvas.append('g').attr('fill', 'none').attr('stroke', 'transparent');
+
+  canvas.append('circle').attr('cx', placeX).attr('cy', placeY).attr('r', 7)
+    .attr('fill', COLORS.surface).attr('stroke', COLORS.ink).attr('stroke-width', 2.5);
+  canvas.append('text').attr('class', 'nf-map-label nf-map-place').attr('x', placeX + 11).attr('y', placeY + 4)
+    .attr('fill', COLORS.ink).attr('stroke', COLORS.surface)
+    .text(map.place.name);
+
+  function arcPath(f) {
+    const [x1, y1, x2, y2] = ends(f);
+    const bend = x2 >= x1 ? 0.18 : -0.18;
+    const cx = (x1 + x2) / 2 - (y2 - y1) * bend;
+    const cy = (y1 + y2) / 2 + (x2 - x1) * bend;
+    return `M${x1},${y1} Q${cx},${cy} ${x2},${y2}`;
+  }
+
+  const gradientId = (f) => `nf-grad-${map.flows.indexOf(f)}`;
+  function updateGradients(flows, color) {
+    defs.selectAll('linearGradient').data(flows, (f) => f.name).join((enter) => {
+      const g = enter.append('linearGradient').attr('gradientUnits', 'userSpaceOnUse');
+      g.append('stop').attr('offset', '0%');
+      g.append('stop').attr('offset', '100%');
+      return g;
+    })
+      .attr('id', gradientId)
+      .attr('x1', (f) => ends(f)[0]).attr('y1', (f) => ends(f)[1])
+      .attr('x2', (f) => ends(f)[2]).attr('y2', (f) => ends(f)[3])
+      .each(function () {
+        const stops = d3.select(this).selectAll('stop');
+        stops.filter((_, i) => i === 0).attr('stop-color', color).attr('stop-opacity', 0.15);
+        stops.filter((_, i) => i === 1).attr('stop-color', color).attr('stop-opacity', 0.95);
+      });
+  }
+
+  function describe(f, seriesIndex) {
+    const riders = f.values[seriesIndex];
+    const total = map.totals?.[seriesIndex];
+    const share = total ? ` · ${Math.round((100 * riders) / total)}% of trips` : '';
+    const verb = map.direction === 'arrivals' ? 'from' : 'to';
+    return `<strong>${escapeHtml(map.place.name)} ${verb} ${escapeHtml(f.name)}</strong><br>${formatNumber(riders)} riders${share} · ${escapeHtml(map.series[seriesIndex])}`;
+  }
+
+  function show(seriesIndex) {
+    const color = COLORS.series[seriesIndex];
+    const flows = topFlows(map, seriesIndex);
+    const drawOrder = [...flows].reverse();  // biggest last, so it sits on top
+    const info = byId('nf-map-info');
+    const idleText = `Hover an arc for details · showing the top ${flows.length} of ${map.flows.length}`;
+    info.textContent = idleText;
+
+    updateGradients(flows, color);
+
+    const arcs = arcLayer.selectAll('path').data(drawOrder, (f) => f.name).join('path')
+      .attr('d', arcPath)
+      .attr('stroke', (f) => `url(#${gradientId(f)})`)
+      .attr('stroke-width', (f) => strokeWidth(f.values[seriesIndex]))
+      .attr('opacity', 1);
+
+    const dots = dotLayer.selectAll('circle').data(drawOrder, (f) => f.name).join('circle')
+      .attr('cx', (f) => project(f.lat, f.lon)[0])
+      .attr('cy', (f) => project(f.lat, f.lon)[1])
+      .attr('r', (f) => dotRadius(f.values[seriesIndex]))
+      .attr('fill', color)
+      .attr('stroke', COLORS.surface)
+      .attr('stroke-width', 1.5)
+      .attr('opacity', 1);
+
+    const highlight = (focus) => {
+      arcs.attr('opacity', (f) => (!focus || f === focus ? 1 : 0.12));
+      dots.attr('opacity', (f) => (!focus || f === focus ? 1 : 0.25));
+      info.innerHTML = focus ? describe(focus, seriesIndex) : escapeHtml(idleText);
+    };
+    hitLayer.selectAll('path').data(drawOrder, (f) => f.name).join('path')
+      .attr('d', arcPath)
+      .attr('stroke-width', 14)
+      .style('cursor', 'pointer')
+      .on('mouseenter', (_, f) => highlight(f))
+      .on('mouseleave', () => highlight(null));
+
+    const placeLabelBox = { x1: placeX - 10, x2: placeX + 14 + map.place.name.length * 7, y1: placeY - 10, y2: placeY + 8 };
+    const candidates = flows.slice(0, MAP_LABELS).map((f) => {
+      const [x, y] = project(f.lat, f.lon);
+      return { ...f, x, y, originX: placeX, offset: dotRadius(f.values[seriesIndex]) + 5, text: `${f.name} ${formatNumber(f.values[seriesIndex])}` };
+    });
+    labelLayer.selectAll('text').data(placeLabels(candidates, [placeLabelBox]), (f) => f.name).join('text')
+      .attr('class', 'nf-map-label')
+      .attr('x', (f) => f.labelX)
+      .attr('y', (f) => f.y + 4)
+      .attr('fill', COLORS.ink)
+      .attr('stroke', COLORS.land)
+      .text((f) => f.text);
+
+    byId('nf-map-bar').querySelectorAll('button').forEach((button, i) => {
+      button.setAttribute('aria-pressed', String(i === seriesIndex));
+    });
+  }
+
+  const bar = byId('nf-map-bar');
+  if (map.series.length > 1) {
+    bar.innerHTML = map.series.map((name) => `<button aria-pressed="false">${escapeHtml(name)}</button>`).join('');
+    bar.querySelectorAll('button').forEach((button, i) => button.addEventListener('click', () => show(i)));
+  }
+  bar.insertAdjacentHTML('beforeend', `<span class="nf-map-note">${escapeHtml(map.note)}</span>`);
+  show(0);
+}
+
+// ── Chart ────────────────────────────────────────────────────────────────────
+
+function renderLegend(chart) {
+  const legend = byId('nf-legend');
+  if (chart.series.length < 2) return legend.remove();
+  const swatch = (i) => chart.type === 'line'
+    ? `<span style="width:14px;height:0;border-top:2px ${i ? 'dashed' : 'solid'} ${COLORS.series[i]}"></span>`
+    : `<span style="width:10px;height:10px;border-radius:2px;background:${COLORS.series[i]}"></span>`;
+  legend.innerHTML = chart.series
+    .map((s, i) => `<span class="nf-legend-item">${swatch(i)}${escapeHtml(s.name)}</span>`)
+    .join('');
+}
+
+function chartDatasets(chart) {
+  return chart.series.map((s, i) => {
+    if (chart.type === 'line') {
+      return {
+        label: s.name, data: s.values,
+        borderColor: COLORS.series[i], backgroundColor: COLORS.series[i],
+        borderWidth: 2, borderDash: LINE_DASHES[i % LINE_DASHES.length],
+        pointRadius: 0, pointHoverRadius: 4, tension: 0.3, fill: false,
+      };
+    }
+    const emphasized = chart.series.length === 1 && chart.emphasis;
+    const barColor = (_, j) => (!emphasized || chart.emphasis.includes(j) ? COLORS.series[i] : COLORS.context);
+    return {
+      label: s.name, data: s.values,
+      backgroundColor: s.values.map(barColor),
+      borderRadius: 4, borderSkipped: 'start', maxBarThickness: 22,
+      categoryPercentage: 0.8, barPercentage: 0.9,
+    };
+  });
+}
+
+function renderChart(chart) {
+  if (!chart) return byId('nf-chart-section').remove();
+  const horizontal = chart.type === 'hbar';
+  const unit = chart.unit ? ` ${chart.unit}` : '';
+  const canvas = byId('nf-chart');
+
+  renderLegend(chart);
+  if (horizontal) {
+    const rowHeight = chart.series.length > 1 ? 30 : 26;
+    byId('nf-chart-wrap').style.height = `${Math.max(160, chart.labels.length * rowHeight + 36)}px`;
+  }
+  const summary = chart.labels.slice(0, 6).map((label, i) => `${label} ${formatNumber(chart.series[0].values[i])}`);
+  canvas.setAttribute('aria-label', `${ANSWER.headline}. ${summary.join(', ')}`);
+
+  const axisTitle = (text) => ({ display: Boolean(text), text, color: COLORS.muted, font: { size: 11 } });
+  const truncate = (label) => (label.length > 28 ? `${label.slice(0, 27)}…` : label);
+
+  new Chart(canvas, {
+    type: chart.type === 'line' ? 'line' : 'bar',
+    data: { labels: chart.labels, datasets: chartDatasets(chart) },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: 0 },
+      indexAxis: horizontal ? 'y' : 'x',
+      interaction: { mode: chart.type === 'line' ? 'index' : 'nearest', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (c) => ` ${c.dataset.label}: ${formatNumber(c.parsed[horizontal ? 'x' : 'y'])}${unit}` } },
+      },
+      scales: {
+        x: {
+          grid: { display: horizontal, color: COLORS.grid },
+          border: { display: false },
+          ticks: {
+            color: COLORS.muted, font: { size: 11 }, maxRotation: 0,
+            autoSkip: !horizontal && chart.labels.length > 12,
+            callback: horizontal ? (v) => formatNumber(v) : undefined,
+          },
+          title: axisTitle(chart.xTitle),
+        },
+        y: {
+          grid: { display: !horizontal, color: COLORS.grid },
+          border: { display: false },
+          beginAtZero: true,
+          ticks: {
+            color: horizontal ? COLORS.inkSoft : COLORS.muted,
+            font: { size: horizontal ? 12 : 11 },
+            callback: horizontal ? function (v) { return truncate(this.getLabelForValue(v)); } : (v) => formatNumber(v),
+          },
+          title: axisTitle(chart.yTitle),
+        },
+      },
+    },
+  });
+}
+
+// ── Query steps ──────────────────────────────────────────────────────────────
+
+function stepSource(step) {
+  if (step.mode !== 'soql') {
+    return `<div class="nf-meta nf-where">${icon('cpu')} Ran locally on the saved results</div>`;
+  }
+  const host = step.endpoint.replace(/^https:\/\//, '');
+  return `<div class="nf-meta nf-where">
+    <span class="nf-mono">${icon('world')} GET ${escapeHtml(host)}</span>
+    <a class="nf-link" href="${escapeHtml(step.url)}">Run this query ${icon('external-link')}</a>
+    <a class="nf-link" href="${escapeHtml(step.dataset)}">Dataset page ${icon('external-link')}</a>
+  </div>`;
+}
+
+function stepPreview(step, index) {
+  const columns = (step.columns || []).slice(0, 5);
+  const rows = step.preview || [];
+  if (!rows.length) return '';
+  const head = columns.map((c) => `<th>${escapeHtml(c)}</th>`).join('');
+  const body = rows
+    .map((r) => `<tr>${columns.map((c) => `<td title="${escapeHtml(r[c])}">${formatNumber(r[c], 1)}</td>`).join('')}</tr>`)
+    .join('');
+  return `<button data-preview="${index}" style="margin-top:8px;font-size:12px">Preview rows</button>
+    <table class="nf-table" id="nf-preview-${index}" hidden><tr>${head}</tr>${body}</table>`;
+}
+
+function renderSteps(steps) {
+  const live = steps.filter((s) => s.mode === 'soql').length;
+  const counts = `${steps.length} ${steps.length === 1 ? 'step' : 'steps'}` + (live ? ` · ${live} live ${live === 1 ? 'query' : 'queries'}` : '');
+  byId('nf-steps-summary').innerHTML =
+    `<i class="ti ti-chevron-right nf-caret" aria-hidden="true"></i>${icon('database')} How this was answered <span class="nf-meta">${counts}</span>`;
+
+  byId('nf-steps').innerHTML = steps.map((step, i) => {
+    const tag = step.mode === 'soql'
+      ? `<span class="nf-tag nf-tag-live">SoQL · live endpoint</span>`
+      : `<span class="nf-tag nf-tag-local">SQL · DuckDB local</span>`;
+    return `<details class="nf-step">
+      <summary class="nf-step-head">
+        <i class="ti ti-chevron-right nf-caret" aria-hidden="true"></i>
+        <span class="nf-step-num">Step ${i + 1}</span>${tag}
+        <span class="nf-step-label">${escapeHtml(step.label || '')}</span>
+        <span class="nf-meta" style="margin-left:auto">${formatNumber(step.rows)} rows · ${step.elapsed_s} s</span>
+      </summary>
+      ${stepSource(step)}
+      <div class="nf-code">${formatSql(step.query)}</div>
+      ${stepPreview(step, i)}
+    </details>`;
+  }).join('');
+
+  document.querySelectorAll('[data-preview]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const table = byId(`nf-preview-${button.dataset.preview}`);
+      table.hidden = !table.hidden;
+      button.textContent = table.hidden ? 'Preview rows' : 'Hide rows';
+    });
+  });
+}
+
+// ── Footer and follow-ups ────────────────────────────────────────────────────
+
+function renderFooter(answer) {
+  const source = `Source: <a class="nf-link" href="${escapeHtml(answer.source.url)}">${escapeHtml(answer.source.title)}</a>`;
+  byId('nf-foot').innerHTML = answer.caveat ? `${source} · ${escapeHtml(answer.caveat)}` : source;
+
+  const follow = byId('nf-follow');
+  follow.innerHTML = answer.followups.map((text, i) => `<button data-followup="${i}">${escapeHtml(text)} ↗</button>`).join('');
+  follow.querySelectorAll('button').forEach((button) => {
+    button.addEventListener('click', () => sendPrompt(answer.followups[Number(button.dataset.followup)]));
+  });
+}
+
+// ── SQL formatting ───────────────────────────────────────────────────────────
+//
+// Lays a one-line query out by clause: each selected column and each WHERE
+// condition on its own line, subqueries indented, keywords, strings, numbers
+// and functions colored. Display only; the logged query is unchanged.
+
+const SQL_CLAUSES = ['SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT', 'LEFT JOIN', 'INNER JOIN', 'JOIN', 'WITH', 'UNION ALL', 'UNION'];
+const SQL_KEYWORDS = new Set([
+  'SELECT', 'FROM', 'WHERE', 'GROUP', 'ORDER', 'BY', 'HAVING', 'LIMIT', 'LEFT', 'INNER', 'JOIN', 'ON', 'WITH',
+  'AS', 'AND', 'OR', 'NOT', 'IN', 'IS', 'NULL', 'BETWEEN', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END',
+  'DESC', 'ASC', 'DISTINCT', 'UNION', 'ALL', 'LIKE',
+]);
+const SQL_TOKEN = /'(?:[^']|'')*'|"[^"]*"|[A-Za-z_][\w.]*|\d+(?:\.\d+)?|\s+|./g;
+
+function formatSql(query) {
+  const tokens = (query.match(SQL_TOKEN) || []).filter((t) => t.trim());
+  const upper = (i) => (tokens[i] || '').toUpperCase();
+  const parens = [];  // one entry per open "(": true when it opens a subquery
+  let out = '';
+  let indent = 0;
+  let clause = '';
+  let inBetween = false;
+  let caseDepth = 0;
+
+  const insideFunction = () => parens.length > 0 && !parens[parens.length - 1];
+  const atTopLevel = () => !insideFunction() && caseDepth === 0;
+  const newline = (extra = 0) => { out = out.trimEnd() + '\n' + '  '.repeat(indent + extra); };
+  const emit = (text, cls) => { out += (cls ? `<span class="${cls}">${escapeHtml(text)}</span>` : escapeHtml(text)) + ' '; };
+  const punct = (text) => `<span class="p">${text}</span>`;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    const word = upper(i);
+    const twoWords = `${word} ${upper(i + 1)}`;
+
+    if (atTopLevel() && SQL_CLAUSES.includes(twoWords)) {
+      if (out) newline();
+      emit(token, 'k');
+      emit(tokens[++i], 'k');
+      clause = twoWords;
+    } else if (atTopLevel() && SQL_CLAUSES.includes(word)) {
+      if (out) newline();
+      emit(token, 'k');
+      clause = word;
+      if (word === 'SELECT') newline(1);
+    } else if (atTopLevel() && (word === 'AND' || word === 'OR') && !(inBetween && word === 'AND')) {
+      newline(1);
+      emit(token, 'k');
+    } else if (token === '(') {
+      const opensSubquery = upper(i + 1) === 'SELECT';
+      parens.push(opensSubquery);
+      if (opensSubquery) indent++;
+      out += punct('(');
+    } else if (token === ')') {
+      out = out.trimEnd();
+      if (parens.pop()) { indent--; newline(); }
+      out += punct(')') + ' ';
+    } else if (token === ',') {
+      out = out.trimEnd() + punct(',');
+      if (atTopLevel() && clause === 'SELECT') newline(1);
+      else out += ' ';
+    } else if (token.startsWith("'")) {
+      emit(token, 's');
+    } else if (/^\d/.test(token)) {
+      emit(token, 'n');
+    } else if (SQL_KEYWORDS.has(word)) {
+      if (word === 'BETWEEN') inBetween = true;
+      if (word === 'AND') inBetween = false;
+      if (word === 'CASE') caseDepth++;
+      if (word === 'END' && caseDepth) caseDepth--;
+      emit(token, 'k');
+    } else if (tokens[i + 1] === '(') {
+      out += `<span class="f">${escapeHtml(token)}</span>`;
+    } else {
+      emit(token);
+    }
+  }
+  return out.replace(/ +\n/g, '\n').trim();
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+
+renderPipeline(ANSWER.steps);
+renderHeader(ANSWER);
+renderKpis(ANSWER.kpis);
+renderMap(ANSWER.map);
+renderChart(ANSWER.chart);
+renderSteps(ANSWER.steps);
+renderFooter(ANSWER);
+</script>

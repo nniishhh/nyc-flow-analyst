@@ -26,12 +26,13 @@
 .nf-chart { position: relative; width: 100%; height: 300px; }
 .nf-map-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
 .nf-map-bar button[aria-pressed="true"] { background: var(--surface-1); border-color: var(--border-stronger); }
-.nf-map-note { font-size: 12px; color: var(--text-muted); margin-left: auto; }
-.nf-map-frame { position: relative; border-radius: 12px; overflow: hidden; border: 0.5px solid var(--border); }
-/* The chat sizes SVGs on its own; pin the map to its 680 × 400 shape so the frame never stretches. */
-.nf-map-frame svg { display: block; width: 100% !important; height: auto !important; aspect-ratio: 680 / 400; }
-.nf-map-info { position: absolute; top: 10px; left: 10px; max-width: 60%; font-size: 12px; line-height: 1.5; padding: 6px 10px; border-radius: var(--radius); background: var(--surface-2); color: var(--text-secondary); border: 0.5px solid var(--border); pointer-events: none; }
+.nf-map-frame { border-radius: 12px; overflow: hidden; border: 0.5px solid var(--border); }
+/* fitMap() sizes the SVG in pixels; the chat's own SVG rules must not stretch or shrink it. */
+.nf-map-frame svg { display: block; max-width: none; margin: 0; }
+.nf-map-caption { font-size: 12px; line-height: 1.5; margin: 6px 2px 0; overflow-wrap: anywhere; }
+.nf-map-info { color: var(--text-secondary); min-height: 3em; }
 .nf-map-info strong { color: var(--text-primary); font-weight: 500; }
+.nf-map-note { color: var(--text-muted); }
 .nf-map-label { font-size: 11.5px; paint-order: stroke; stroke-width: 3.5px; stroke-linejoin: round; }
 .nf-map-place { font-size: 12.5px; font-weight: 500; }
 .nf-map-borough { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -250,7 +251,8 @@ function placeLabels(items, reserved) {
     const preferLeft = item.x < item.originX;
     for (const x1 of preferLeft ? [left, right] : [right, left]) {
       const box = { x1, x2: x1 + width, y1: item.y - 9, y2: item.y + 5 };
-      if (x1 >= 2 && box.x2 <= MAP_WIDTH - 2 && !overlaps(box)) {
+      const inside = x1 >= 2 && box.x2 <= MAP_WIDTH - 2 && box.y1 >= 2 && box.y2 <= MAP_HEIGHT - 2;
+      if (inside && !overlaps(box)) {
         boxes.push(box);
         placed.push({ ...item, labelX: x1 });
         break;
@@ -278,15 +280,18 @@ function renderMap(map) {
 
   box.innerHTML = `
     <div class="nf-map-bar" id="nf-map-bar"></div>
-    <div class="nf-map-frame">
+    <div class="nf-map-frame"></div>
+    <div class="nf-map-caption">
+      <div class="nf-map-note">${escapeHtml(map.note || '')}</div>
       <div class="nf-map-info" id="nf-map-info"></div>
     </div>`;
-  const svg = d3.select(box.querySelector('.nf-map-frame')).append('svg')
+  const frame = box.querySelector('.nf-map-frame');
+  const svg = d3.select(frame).append('svg')
     .attr('viewBox', `0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`)
-    .attr('width', MAP_WIDTH)
-    .attr('height', MAP_HEIGHT)
+    .attr('preserveAspectRatio', 'xMidYMid meet')
     .attr('role', 'img')
     .attr('aria-label', `Map of subway ${map.direction} for ${map.place.name}`);
+  fitMap(frame, svg.node());
   const defs = svg.append('defs');
   defs.append('clipPath').attr('id', 'nf-map-clip')
     .append('rect').attr('width', MAP_WIDTH).attr('height', MAP_HEIGHT).attr('rx', 12);
@@ -395,7 +400,7 @@ function renderMap(map) {
       .attr('stroke', COLORS.land)
       .text((f) => f.text);
 
-    byId('nf-map-bar').querySelectorAll('button').forEach((button, i) => {
+    bar.querySelectorAll('button').forEach((button, i) => {
       button.setAttribute('aria-pressed', String(i === seriesIndex));
     });
   }
@@ -405,8 +410,21 @@ function renderMap(map) {
     bar.innerHTML = map.series.map((name) => `<button aria-pressed="false">${escapeHtml(name)}</button>`).join('');
     bar.querySelectorAll('button').forEach((button, i) => button.addEventListener('click', () => show(i)));
   }
-  bar.insertAdjacentHTML('beforeend', `<span class="nf-map-note">${escapeHtml(map.note)}</span>`);
+  if (!bar.children.length) bar.remove();
   show(0);
+}
+
+// Pins the map to its frame's width at 680 × 400 proportions. Inline !important
+// sizes beat any SVG rules the chat applies, and the observer follows resizes.
+function fitMap(frame, svg) {
+  const fit = () => {
+    const width = frame.clientWidth;
+    if (!width) return;
+    const pin = { width: `${width}px`, height: `${Math.round((width * MAP_HEIGHT) / MAP_WIDTH)}px`, 'max-width': 'none', margin: '0' };
+    for (const [name, value] of Object.entries(pin)) svg.style.setProperty(name, value, 'important');
+  };
+  fit();
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(frame);
 }
 
 // ── Chart ────────────────────────────────────────────────────────────────────

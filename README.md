@@ -84,6 +84,9 @@ Type `/nyc-flow-analyst` followed by a question, or just ask:
 - *Across the city, where do people go after 10 p.m. on a Saturday?*
 - *Show Flushing departures hour by hour, Saturday vs Wednesday.*
 - *How much quieter is the Financial District on Friday than on Wednesday?*
+- *What are the busiest origin stations on an average Sunday?*
+- *Which stations do people arriving at Grand Central come from, 7 to 10 a.m.?*
+- *Which station-to-station trips are busiest on a Friday night?*
 
 The answers render as interactive cards in the Claude desktop app and on
 claude.ai. Ask *"make this a presentation"* to turn a conversation's findings

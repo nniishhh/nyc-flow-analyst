@@ -22,6 +22,26 @@ patterns, and offer the closest question it can answer. For example: "I can't
 see delays, but I can show how Friday ridership from Long Island City compares
 with Wednesday." Don't answer from general knowledge.
 
+## Starting without a question
+
+If the skill is invoked with no question, say in one line what it covers
+(subway trips between stations and neighborhoods, January 2026 onward, by
+weekday, hour, and month), then offer example questions in two groups, and ask
+for a place, a direction, and the days and hours. Don't query anything yet.
+
+**Stations**
+- "What are the busiest origin stations on an average Sunday?"
+- "Where do riders leaving Times Sq-42 St go on a weekday evening?"
+- "Which stations do people arriving at Grand Central come from, 7 to 10 a.m.?"
+- "Hour by hour, how busy is Jackson Hts-Roosevelt Av on Saturday vs Wednesday?"
+- "Which station-to-station trips are busiest on a Friday night?"
+
+**Neighborhoods**
+- "Where do riders leaving Williamsburg go after 10 p.m. on Saturday?"
+- "Where do people arriving in Midtown on a weekday morning start from?"
+- "Which neighborhoods take in more morning riders than they send out?"
+- "Are Bushwick departures on Friday nights growing since January?"
+
 ## Workflow for each new question
 
 `nyc.py` below means `uv run <this skill's base directory>/nyc.py`, with the
